@@ -14,7 +14,12 @@ local mod = require 'core/mods'
 --
 
 local state = {
-  start = 0
+  x = 0,
+  start = 0,
+  matron = "yes",
+  sc = "no",
+  crone = "no",
+  jack = "no"
 }
 
 
@@ -31,11 +36,11 @@ local state = {
 -- and test out access to mod level state via mod supplied fuctions.
 --
 
-mod.hook.register("system_post_startup", "logger startup", function()
+mod.hook.register("system_post_startup", "lumberjack startup", function()
   state.start = util.os_capture('date "+%Y-%m-%d %H:%M:%S"')
 end)
 
-mod.hook.register("script_pre_init", "logger save point", function()
+mod.hook.register("script_pre_init", "lumberjack save point", function()
   state.start = util.os_capture('date "+%Y-%m-%d %H:%M:%S"')
 end)
 
@@ -53,33 +58,98 @@ m.key = function(n, z)
     mod.menu.exit()
   end
   if n==3 and z==1 then
-    -- dump log
-    local s = norns.state.name..' - '
-    local script = string.gsub(s,'/','-')
-    os.execute('mkdir -p '.._path.data..'logger/')
-    os.execute('journalctl -u norns-matron.service --since="'..state.start..'" > "'.._path.data..'logger/'..script..state.start..'.txt"')
+    if state.x == 1 then
+      -- dump log
+      local services = ''
+      if state.matron == 'yes' then
+        services = services..' -u norns-matron.service'
+      end
+      if state.sc == 'yes' then
+        services = services..' -u norns-sclang.service'
+      end
+      if state.crone == 'yes' then
+        services = services..' -u norns-crone.service'
+      end
+      if state.jack == 'yes' then
+        services = services..' -u norns-jack.service'
+      end
+      local s = norns.state.name..' - '
+      local script = string.gsub(s,'/','-')
+      os.execute('mkdir -p '.._path.data..'lumberjack/')
+      os.execute('journalctl '..services..' --since="'..state.start..'" > "'.._path.data..'lumberjack/'..script..state.start..'.txt"')
+    elseif state.x == 2 then
+      state.matron = state.matron=="no" and "yes" or "no"
+    elseif state.x == 3 then
+      state.sc = state.sc=="no" and "yes" or "no"
+    elseif state.x == 4 then
+      state.crone = state.crone=="no" and "yes" or "no"
+    elseif state.x == 5 then
+      state.jack = state.jack=="no" and "yes" or "no"
+    end
   end
   mod.menu.redraw()
 end
 
--- m.enc = function(n, d)
---   if n == 2 then state.x = state.x + d
---   elseif n == 3 then state.y = state.y + d end
---   -- tell the menu system to redraw, which in turn calls the mod's menu redraw
---   -- function
---   mod.menu.redraw()
--- end
+m.enc=function(n,d)
+  if d>0 then 
+    d=1 
+  elseif d<0 then 
+    d=-1 
+  end
+  state.x=util.clamp(state.x+d,1,5)
+  mod.menu.redraw()
+end
 
 m.redraw = function()
   screen.clear()
-  screen.move(64,18)
-  screen.text_center('press k3 to save')
-  screen.move(64,26)
-  screen.text_center('current script log')
-  screen.move(64,42)
-  screen.text_center('since: '..state.start)
+  -- save
+  screen.level(state.x==1 and 15 or 5)
+  screen.move(64,12)
+  screen.text_center('get logs')
+  -- toggle matron
+  screen.level(state.x==2 and 15 or 5)
+  screen.move(64,24)
+  screen.text_center('matron: '..state.matron)
+  -- toggle sc
+  screen.level(state.x==3 and 15 or 5)
+  screen.move(64,36)
+  screen.text_center('supercollider: '..state.sc)
+  -- toggle crone
+  screen.level(state.x==4 and 15 or 5)
+  screen.move(64,48)
+  screen.text_center('crone: '..state.crone)
+  -- toggle jack
+  screen.level(state.x==5 and 15 or 5)
+  screen.move(64,60)
+  screen.text_center('jack: '..state.jack)
+  
   screen.update()
 end
+
+-- m.redraw=function()
+--   local yy=-8
+--   screen.clear()
+--   screen.level(state.x==1 and 15 or 5)
+--   screen.move(64,20+yy)
+--   screen.text_center(state.is_running and "online" or "offline")
+--   if state.station~="" then
+--     screen.level(5)
+--     screen.move(64,32+yy)
+--     screen.text_center("broadcast.norns.online/")
+--     screen.move(64,40+yy)
+--     screen.text_center(state.station..".mp3")
+--   end
+--   screen.level(state.x==2 and 15 or 5)
+--   screen.move(64,52+yy)
+--   screen.text_center("edit station name")
+--   screen.level(state.x==3 and 15 or 5)
+--   screen.move(35,62+yy)
+--   screen.text_center("advertise:"..state.advertise)
+--   screen.level(state.x==4 and 15 or 5)
+--   screen.move(36+64,62+yy)
+--   screen.text_center("archive:"..state.archive)
+--   screen.update()
+-- end
 
 m.init = function() end -- on menu entry, ie, if you wanted to start timers
 m.deinit = function() end -- on menu exit
